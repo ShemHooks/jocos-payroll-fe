@@ -59,17 +59,6 @@ const permissions = computed<string[]>(() =>
   )
 );
 
-const isAdmin = computed(() =>
-  (user.value?.roles || []).some((role: any) => {
-    const code =
-      typeof role === "string"
-        ? role
-        : role.code;
-
-    return String(code).toUpperCase() === "ADMIN";
-  })
-);
-
 function can(permission: string) {
   return permissions.value.includes(permission);
 }
@@ -230,11 +219,12 @@ const currentDate = computed(() =>
   }).format(new Date())
 );
 
-function handleLogout() {
-  profileOpen.value = false;
-  mobileSidebarOpen.value = false;
-  auth.logout();
-  router.replace("/login");
+async function handleLogout(): Promise<void> {
+  try {
+    await auth.logout();
+  } finally {
+    await router.replace({ name: "home" });
+  }
 }
 
 function closeSidebar() {

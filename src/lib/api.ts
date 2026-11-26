@@ -2,9 +2,34 @@ import axios from "axios";
 
 export const ACCESS_TOKEN_KEY = "jocos_access_token";
 
+// ==========================================
+// API RESPONSE TYPES
+// ==========================================
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  message: string;
+  errors?: Record<string, string | string[]> | null;
+}
+
+// ==========================================
+// AXIOS INSTANCE
+// ==========================================
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 15000,
+
+  headers: {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
 });
 
 // ==========================================
@@ -17,7 +42,10 @@ api.interceptors.request.use((config) => {
   );
 
   if (token && config.url !== "/auth/login") {
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
   }
 
   return config;
@@ -32,7 +60,9 @@ api.interceptors.response.use(
 
   (error) => {
     const status = error.response?.status;
-    const detail = error.response?.data?.detail;
+
+    const errors = error.response?.data?.errors;
+
     const requestUrl = error.config?.url;
 
     const requestToken =
@@ -42,11 +72,14 @@ api.interceptors.response.use(
       ACCESS_TOKEN_KEY
     );
 
-    const isCurrentSession =
+    const isCurrentSession = Boolean(
       currentToken &&
-      requestToken === `Bearer ${currentToken}`;
+      requestToken === `Bearer ${currentToken}`
+    );
 
-    // Invalid or expired authentication session.
+    // ======================================
+    // INVALID OR EXPIRED SESSION
+    // ======================================
 
     if (
       status === 401 &&
@@ -62,11 +95,13 @@ api.interceptors.response.use(
       );
     }
 
-    // Mandatory password change required.
+    // ======================================
+    // MANDATORY PASSWORD CHANGE
+    // ======================================
 
     if (
       status === 403 &&
-      detail?.code === "PASSWORD_CHANGE_REQUIRED" &&
+      errors?.code === "PASSWORD_CHANGE_REQUIRED" &&
       isCurrentSession
     ) {
       window.dispatchEvent(
@@ -77,3 +112,55 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// ==========================================
+// API ERROR MESSAGE HELPER
+// ==========================================
+
+export function getApiErrorMessage(
+  error: unknown,
+  fallback = "Something went wrong. Please try again."
+): string {
+  if (axios.isAxiosError<ApiErrorResponse>(error)) {
+    const response = error.response?.data;
+
+    if (error.response?.status === 429) {
+      return "Too many attempts. Please try again later.";
+    }
+
+    if (response?.errors) {
+      for (const [key, value] of Object.entries(
+        response.errors
+      )) {
+        if (key === "code") continue;
+
+        if (
+          Array.isArray(value) &&
+          typeof value[0] === "string"
+        ) {
+          return value[0];
+        }
+
+        if (typeof value === "string") {
+          return value;
+        }
+      }
+    }
+
+    if (typeof response?.message === "string") {
+      return response.message;
+    }
+
+    if (!error.response) {
+      return "Unable to connect to the server. Please check your connection.";
+    }
+
+    return fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}

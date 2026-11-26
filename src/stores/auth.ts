@@ -1,45 +1,35 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, onScopeDispose } from "vue";
 import axios from "axios";
 
 import {
   api,
   ACCESS_TOKEN_KEY,
+  type ApiResponse,
 } from "../lib/api";
 
-// ==========================================
-// TYPES
-// ==========================================
+import {
+  RoleCode,
+  type PermissionCode,
+} from "@/constants/authorization";
 
-interface Role {
-  id?: number;
-  code: string;
-  name: string;
-}
+import type {
+  CurrentUser,
+  LoginPayload,
+  LoginResponse,
+  ChangePasswordPayload,
+} from "@/types/auth";
 
-interface CurrentUser {
-  id: number;
-  employee_id: number | null;
-  username: string;
-  email: string | null;
-  is_active: boolean;
-  must_change_password: boolean;
-  roles: Role[];
-  permissions: string[];
-}
+// Preserve compatibility with components
+// importing authentication types from this store.
 
-interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  must_change_password: boolean;
-}
-
-interface ChangePasswordPayload {
-  current_password: string;
-  new_password: string;
-  confirm_password: string;
-}
+export type {
+  Role,
+  CurrentUser,
+  LoginPayload,
+  LoginResponse,
+  ChangePasswordPayload,
+} from "@/types/auth";
 
 // ==========================================
 // AUTHENTICATION STORE
@@ -61,7 +51,11 @@ export const useAuthStore = defineStore("auth", () => {
   // ========================================
 
   const isAuthenticated = computed(
-    () => Boolean(token.value && user.value)
+    () => Boolean(
+      token.value &&
+      user.value &&
+      user.value.is_active
+    )
   );
 
   const mustChangePassword = computed(
@@ -70,43 +64,104 @@ export const useAuthStore = defineStore("auth", () => {
       Boolean(user.value?.must_change_password)
   );
 
-  const isAdmin = computed(
+  const displayName = computed(
     () =>
-      user.value?.roles.some(
-        (role) => role.code === "ADMIN"
-      ) ?? false
+      user.value?.name ||
+      user.value?.username ||
+      ""
   );
 
-  const isEmployee = computed(
-    () =>
-      user.value?.roles.some(
-        (role) => role.code === "EMPLOYEE"
-      ) ?? false
+  const primaryRole = computed(
+    () => user.value?.roles[0] ?? null
   );
 
   // ========================================
-  // PERMISSIONS
+  // ROLE AUTHORIZATION
+  // ========================================
+
+  function hasRole(roleCode: string): boolean {
+    if (
+      !isAuthenticated.value ||
+      !user.value
+    ) {
+      return false;
+    }
+
+    return user.value.roles.some(
+      (role) => role.code === roleCode
+    );
+  }
+
+  function hasAnyRole(
+    roles: readonly string[]
+  ): boolean {
+    return roles.some(
+      (role) => hasRole(role)
+    );
+  }
+
+  const isAdmin = computed(
+    () => hasRole(RoleCode.ADMIN)
+  );
+
+  const isAccounting = computed(
+    () => hasRole(RoleCode.ACCOUNTING)
+  );
+
+  const isTreasurer = computed(
+    () => hasRole(RoleCode.TREASURER)
+  );
+
+  const isPayrollEncoder = computed(
+    () => hasRole(RoleCode.PAYROLL_ENCODER)
+  );
+
+  const isHospitalEncoder = computed(
+    () => hasRole(RoleCode.HOSPITAL_ENCODER)
+  );
+
+  const isEncoder = computed(
+    () =>
+      hasAnyRole([
+        RoleCode.PAYROLL_ENCODER,
+        RoleCode.HOSPITAL_ENCODER,
+      ])
+  );
+
+  // ========================================
+  // PERMISSION AUTHORIZATION
   // ========================================
 
   function can(permission: string): boolean {
     if (
       !isAuthenticated.value ||
+      !user.value ||
       mustChangePassword.value
     ) {
       return false;
     }
 
-    return (
-      user.value?.permissions.includes(permission) ??
-      false
+    return user.value.permissions.includes(
+      permission as PermissionCode
     );
   }
 
-  function hasRole(roleCode: string): boolean {
+  function canAny(
+    permissions: readonly string[]
+  ): boolean {
+    return permissions.some(
+      (permission) => can(permission)
+    );
+  }
+
+  function canAll(
+    permissions: readonly string[]
+  ): boolean {
     return (
-      user.value?.roles.some(
-        (role) => role.code === roleCode
-      ) ?? false
+      permissions.length > 0 &&
+      permissions.every(
+        (permission) => can(permission)
+      )
     );
   }
 
@@ -115,6 +170,12 @@ export const useAuthStore = defineStore("auth", () => {
   // ========================================
 
   function setToken(response: LoginResponse) {
+    if (!response?.access_token) {
+      throw new Error(
+        "Invalid authentication response."
+      );
+    }
+
     token.value = response.access_token;
 
     passwordChangeRequired.value =
@@ -128,7 +189,9 @@ export const useAuthStore = defineStore("auth", () => {
 
   function clearSession() {
     token.value = null;
+
     user.value = null;
+
     passwordChangeRequired.value = false;
 
     sessionStorage.removeItem(
@@ -141,6 +204,7 @@ export const useAuthStore = defineStore("auth", () => {
 
     if (user.value) {
       user.value.must_change_password = true;
+
       user.value.permissions = [];
     }
   }
@@ -149,23 +213,42 @@ export const useAuthStore = defineStore("auth", () => {
   // CURRENT USER
   // ========================================
 
-  async function fetchMe() {
-    if (!token.value) return null;
+  async function fetchMe(): Promise<CurrentUser | null> {
+    if (!token.value) {
+      return null;
+    }
 
     const requestToken = token.value;
 
     try {
-      const response =
-        await api.get<CurrentUser>("/auth/me");
+      const response = await api.get<
+        ApiResponse<CurrentUser>
+      >("/auth/me");
 
       if (token.value !== requestToken) {
         return null;
       }
 
-      user.value = response.data;
+      const currentUser = response.data.data;
+
+      if (
+        !response.data.success ||
+        !currentUser ||
+        !currentUser.is_active
+      ) {
+        clearSession();
+
+        return null;
+      }
+
+      user.value = currentUser;
 
       passwordChangeRequired.value =
-        response.data.must_change_password;
+        currentUser.must_change_password;
+
+      if (mustChangePassword.value) {
+        user.value.permissions = [];
+      }
 
       return user.value;
     } catch (error) {
@@ -191,22 +274,35 @@ export const useAuthStore = defineStore("auth", () => {
   async function login(
     username: string,
     password: string
-  ) {
+  ): Promise<CurrentUser> {
+    if (loading.value) {
+      throw new Error(
+        "An authentication request is already in progress."
+      );
+    }
+
     loading.value = true;
 
     clearSession();
 
     try {
-      const response =
-        await api.post<LoginResponse>(
-          "/auth/login",
-          {
-            username,
-            password,
-          }
-        );
+      const payload: LoginPayload = {
+        username,
+        password,
+      };
 
-      setToken(response.data);
+      const response = await api.post<
+        ApiResponse<LoginResponse>
+      >("/auth/login", payload);
+
+      if (!response.data.success) {
+        throw new Error(
+          response.data.message ||
+          "Unable to sign in."
+        );
+      }
+
+      setToken(response.data.data);
 
       const currentUser = await fetchMe();
 
@@ -219,10 +315,54 @@ export const useAuthStore = defineStore("auth", () => {
       return currentUser;
     } catch (error) {
       clearSession();
+
       throw error;
     } finally {
       loading.value = false;
     }
+  }
+
+  // ========================================
+  // REFRESH PERMISSIONS
+  // ========================================
+
+  async function fetchPermissions(): Promise<PermissionCode[]> {
+    if (
+      !isAuthenticated.value ||
+      !user.value ||
+      mustChangePassword.value
+    ) {
+      return [];
+    }
+
+    const requestToken = token.value;
+
+    const response = await api.get<
+      ApiResponse<PermissionCode[]>
+    >("/auth/permissions");
+
+    if (
+      token.value !== requestToken ||
+      !user.value ||
+      mustChangePassword.value
+    ) {
+      return [];
+    }
+
+    if (
+      !response.data.success ||
+      !Array.isArray(response.data.data)
+    ) {
+      user.value.permissions = [];
+
+      throw new Error(
+        "Unable to retrieve account permissions."
+      );
+    }
+
+    user.value.permissions = response.data.data;
+
+    return user.value.permissions;
   }
 
   // ========================================
@@ -231,17 +371,27 @@ export const useAuthStore = defineStore("auth", () => {
 
   async function changePassword(
     payload: ChangePasswordPayload
-  ) {
+  ): Promise<CurrentUser> {
+    if (loading.value) {
+      throw new Error(
+        "An authentication request is already in progress."
+      );
+    }
+
+    if (!token.value) {
+      throw new Error(
+        "Please sign in before changing your password."
+      );
+    }
+
     loading.value = true;
 
     const requestToken = token.value;
 
     try {
-      const response =
-        await api.post<LoginResponse>(
-          "/auth/change-password",
-          payload
-        );
+      const response = await api.post<
+        ApiResponse<LoginResponse>
+      >("/auth/change-password", payload);
 
       if (token.value !== requestToken) {
         throw new Error(
@@ -249,13 +399,21 @@ export const useAuthStore = defineStore("auth", () => {
         );
       }
 
-      // Replace the invalidated JWT.
+      if (!response.data.success) {
+        throw new Error(
+          response.data.message ||
+          "Unable to change your password."
+        );
+      }
+
+      // Laravel has revoked all previous
+      // Sanctum access tokens.
 
       user.value = null;
 
-      setToken(response.data);
-
       try {
+        setToken(response.data.data);
+
         const currentUser = await fetchMe();
 
         if (!currentUser) {
@@ -288,7 +446,11 @@ export const useAuthStore = defineStore("auth", () => {
 
     try {
       if (requestToken) {
-        await api.post("/auth/logout");
+        const response = await api.post<
+          ApiResponse<null>
+        >("/auth/logout");
+
+        revoked = response.data.success;
       }
     } catch (error) {
       revoked =
@@ -317,19 +479,56 @@ export const useAuthStore = defineStore("auth", () => {
     requirePasswordChange
   );
 
+  onScopeDispose(() => {
+    window.removeEventListener(
+      "jocos:session-expired",
+      clearSession
+    );
+
+    window.removeEventListener(
+      "jocos:password-change-required",
+      requirePasswordChange
+    );
+  });
+
+  // ========================================
+  // EXPORTED STORE
+  // ========================================
+
   return {
+    // State
     token,
     user,
     loading,
+
+    // Authentication
     isAuthenticated,
-    isAdmin,
-    isEmployee,
     mustChangePassword,
-    can,
+
+    // User information
+    displayName,
+    primaryRole,
+
+    // Role indicators
+    isAdmin,
+    isAccounting,
+    isTreasurer,
+    isPayrollEncoder,
+    isHospitalEncoder,
+    isEncoder,
+
+    // Authorization
     hasRole,
+    hasAnyRole,
+    can,
+    canAny,
+    canAll,
+
+    // Authentication actions
     login,
     logout,
     fetchMe,
+    fetchPermissions,
     clearSession,
     changePassword,
     requirePasswordChange,

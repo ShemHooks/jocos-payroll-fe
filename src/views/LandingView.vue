@@ -1,9 +1,7 @@
-
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import {
   ArrowRight,
-  ArrowUpRight,
   Calculator,
   CheckCircle2,
   ClipboardCheck,
@@ -16,8 +14,8 @@ import {
   Wallet,
   X,
   ChevronDown,
-  Building2,
   BadgeCheck,
+  ArrowUpRight
 } from "lucide-vue-next";
 
 const menuOpen = ref(false);
@@ -44,23 +42,23 @@ const features = [
   {
     icon: Users,
     number: "01",
-    title: "Employee Management",
+    title: "Personnel Management",
     description:
-      "Centralized employee profiles, departments, positions, employment contracts, and personnel records for JO/COS workers.",
+      "Centralized personnel records, departments, positions, appointments, and employment classifications across the provincial government.",
   },
   {
     icon: Calculator,
     number: "02",
-    title: "Payroll Processing",
+    title: "Unified Payroll Processing",
     description:
-      "Structured payroll preparation, salary computation, deductions, adjustments, and payroll period management.",
+      "Payroll preparation, salary computation, deductions, adjustments, and payroll schedules across all employment classifications.",
   },
   {
     icon: Wallet,
     number: "03",
-    title: "Special Compensation",
+    title: "Benefits & Compensation",
     description:
-      "Dedicated workflows for EPEP, HEA, PhilHealth sharing, gratuity, and other compensation programs.",
+      "Management of applicable salaries, allowances, benefits, incentives, and special compensation programs.",
   },
   {
     icon: ClipboardCheck,
@@ -90,13 +88,13 @@ const steps = [
     number: "01",
     title: "Manage Personnel",
     description:
-      "Organize employee information, employment contracts, departments, and assignments.",
+      "Organize personnel information, appointments, employment classifications, departments, and assignments.",
   },
   {
     number: "02",
     title: "Prepare Payroll",
     description:
-      "Process salary information, deductions, adjustments, and applicable compensation.",
+      "Process salaries, deductions, benefits, allowances, and applicable compensation based on employment classification.",
   },
   {
     number: "03",
@@ -130,7 +128,7 @@ const steps = [
 
           <div class="brand-copy">
             <strong>Province of Negros Occidental</strong>
-            <span>JOCOS Payroll Management System</span>
+            <span>PGNO Payroll Management System</span>
           </div>
         </RouterLink>
 
@@ -149,21 +147,15 @@ const steps = [
             <RouterLink to="/login" @click="closeMenu">
               Sign In
             </RouterLink>
-            <RouterLink to="/register" @click="closeMenu">
-              Register
-            </RouterLink>
           </div>
         </nav>
 
         <div class="nav-actions">
-          <RouterLink to="/login" class="nav-signin">
-            Sign In
-          </RouterLink>
+           <RouterLink to="/login" class="nav-signin">
+  Sign In
+  <ArrowUpRight :size="16" />
+</RouterLink>
 
-          <RouterLink to="/register" class="nav-register">
-            Register
-            <ArrowUpRight :size="16" />
-          </RouterLink>
 
           <button
             type="button"
@@ -195,21 +187,21 @@ const steps = [
             </div>
 
             <p class="hero-overline">
-              JO/COS PAYROLL MANAGEMENT SYSTEM
+              PGNO PAYROLL MANAGEMENT SYSTEM
               <span class="overline-divider"></span>
-              VERSION 2.0
+              UNIFIED PLATFORM
             </p>
 
             <h1>
-              Modernizing payroll.
+              One province. One payroll.
               <span>Empowering public service.</span>
             </h1>
 
             <p class="hero-description">
-              A modern, centralized payroll management platform
-              designed to support the efficient administration
-              of Job Order (JO) and Contract of Service (COS)
-              personnel of the Province of Negros Occidental.
+              A unified payroll management platform designed to
+              streamline salary administration, compensation,
+              benefits, and payroll operations for all personnel
+              of the Provincial Government of Negros Occidental.
             </p>
 
             <div class="hero-actions">
@@ -218,10 +210,6 @@ const steps = [
                 <ArrowRight :size="19" />
               </RouterLink>
 
-              <RouterLink to="/register" class="hero-secondary">
-                Request an Account
-                <ArrowUpRight :size="18" />
-              </RouterLink>
             </div>
 
             <div class="hero-security">
@@ -276,14 +264,15 @@ const steps = [
 
           <div class="about-content">
             <p>
-              JOCOS Payroll 2.0 is a payroll modernization initiative
-              designed to support the management of Job Order and
-              Contract of Service personnel within the Provincial
-              Government of Negros Occidental.
+              PGNO Payroll is a unified payroll modernization initiative
+              designed to support permanent, casual, Job Order (JO),
+              Contract of Service (COS), and other applicable personnel
+              classifications within the Provincial Government of
+              Negros Occidental.
             </p>
 
             <p>
-              The platform aims to bring employee records, payroll
+              The platform aims to bring personnel records, payroll
               computations, approval workflows, treasury preparation,
               and official documentation into one coordinated
               and accessible system.
@@ -295,7 +284,7 @@ const steps = [
               </div>
 
               <div>
-                <strong>Designed for accountable operations</strong>
+                <strong>One unified payroll ecosystem</strong>
                 <span>
                   Structured workflows, clear responsibilities,
                   and secure access to payroll information.
@@ -322,7 +311,7 @@ const steps = [
 
             <p>
               A comprehensive set of planned capabilities
-              supporting the JO/COS payroll lifecycle,
+              supporting the payroll lifecycle of all provincial personnel,
               from employee administration to official reporting.
             </p>
           </div>
@@ -362,8 +351,8 @@ const steps = [
             </div>
 
             <h2>
-              A simpler way to manage
-              <span>the payroll lifecycle.</span>
+              A unified approach to
+              <span>payroll administration.</span>
             </h2>
 
             <p>
@@ -409,7 +398,7 @@ const steps = [
           <div class="access-copy">
             <div class="access-label">
               <LockKeyhole :size="16" />
-              SECURE STAFF ACCESS
+              AUTHORIZED STAFF ACCESS
             </div>
 
             <h2>
@@ -418,9 +407,9 @@ const steps = [
             </h2>
 
             <p>
-              Access JOCOS Payroll 2.0 with your
-              authorized account, or request access
-              through your system administrator.
+              Access PGNO Payroll with your
+              authorized administrative account issued by
+              your designated system administrator.
             </p>
           </div>
 
@@ -430,10 +419,6 @@ const steps = [
               <ArrowRight :size="18" />
             </RouterLink>
 
-            <RouterLink to="/register" class="access-secondary">
-              Register / Request Access
-              <ArrowUpRight :size="17" />
-            </RouterLink>
           </div>
         </div>
       </section>
@@ -449,20 +434,20 @@ const steps = [
           />
 
           <div>
-            <strong>JOCOS Payroll 2.0</strong>
+            <strong>PGNO Payroll</strong>
             <span>Province of Negros Occidental</span>
           </div>
         </div>
 
         <div class="footer-info">
-          <span>Internal Payroll Management System</span>
-          <span>For authorized government personnel</span>
+          <span>Unified Payroll Management System</span>
+          <span>For authorized payroll and administrative personnel</span>
         </div>
       </div>
 
       <div class="section-container footer-bottom">
         <span>Provincial Government of Negros Occidental</span>
-        <span>JOCOS Payroll Management System</span>
+        <span>PGNO Payroll Management System</span>
       </div>
     </footer>
   </div>
@@ -601,15 +586,35 @@ const steps = [
 }
 
 .nav-signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 9px;
   color: white;
   text-decoration: none;
   font-size: 13px;
-  font-weight: 650;
-  padding: 12px 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .nav-signin:hover {
-  color: #a7efbf;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.85);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.nav-signin:active {
+  transform: translateY(0);
 }
 
 .nav-register {

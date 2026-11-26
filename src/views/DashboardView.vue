@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { RoleCode } from "@/constants/authorization";
 import { Activity, ArrowRight, Calculator, ClipboardCheck, FileText, Fingerprint, LockKeyhole, ShieldCheck, Users } from "lucide-vue-next";
 const auth = useAuthStore();
 const router = useRouter();
@@ -9,8 +10,11 @@ const user = computed(() => auth.user);
 const username = computed(() => user.value?.username || "User");
 const roleNames = computed(() => (user.value?.roles || []).map(role => role.name));
 const permissions = computed(() => user.value?.permissions || []);
-const isAdmin = computed(() => user.value?.roles.some(role => role.code === "ADMIN") ?? false);
-function can(permission: string) { return auth.can(permission); }
+const isAdmin = computed(() =>
+  user.value?.roles.some(
+    role => role.code === RoleCode.ADMIN
+  ) ?? false
+);function can(permission: string) { return auth.can(permission); }
 const modules = computed(() => [
   {
     title: "Employee Management",

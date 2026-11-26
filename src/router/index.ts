@@ -5,19 +5,23 @@ import {
 
 import { useAuthStore } from "../stores/auth";
 
+import {
+  RoleCode,
+  PermissionCode,
+} from "@/constants/authorization";
+
 import LandingView from "../views/LandingView.vue";
 import LoginView from "../views/LoginView.vue";
 import ChangePasswordView from "../views/ChangePasswordView.vue";
 
 import DashboardView from "../views/DashboardView.vue";
-import UsersView from "../views/UsersView.vue";
 import DashboardLayout from "../layouts/DashboardLayout.vue";
 
+import UsersView from "../views/UsersView.vue";
 import EmployeesView from "../views/EmployeesView.vue";
 import DepartmentsView from "../views/DepartmentsView.vue";
 import PositionsView from "../views/PositionsView.vue";
 import OrganizationalUnitsView from "../views/OrganizationalUnitsView.vue";
-import EmploymentContractsView from "../views/EmploymentContractsView.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -37,6 +41,10 @@ const router = createRouter({
       path: "/login",
       name: "login",
       component: LoginView,
+
+      meta: {
+        guestOnly: true,
+      },
     },
 
     // Public registration is disabled.
@@ -63,6 +71,22 @@ const router = createRouter({
     },
 
     // ======================================
+    // ACCESS DENIED
+    // ======================================
+
+    {
+      path: "/forbidden",
+      name: "forbidden",
+
+      component: () =>
+        import("../views/ForbiddenView.vue"),
+
+      meta: {
+        requiresAuth: true,
+      },
+    },
+
+    // ======================================
     // PROTECTED DASHBOARD
     // ======================================
 
@@ -75,11 +99,19 @@ const router = createRouter({
       },
 
       children: [
+        // ==================================
+        // DASHBOARD OVERVIEW
+        // ==================================
+
         {
           path: "",
           name: "dashboard",
           component: DashboardView,
         },
+
+        // ==================================
+        // SYSTEM ADMINISTRATION
+        // ==================================
 
         {
           path: "users",
@@ -87,37 +119,13 @@ const router = createRouter({
           component: UsersView,
 
           meta: {
-            permission: "users.manage",
-          },
-        },
+            roles: [
+              RoleCode.ADMIN,
+            ],
 
-        {
-          path: "employees",
-          name: "employees",
-          component: EmployeesView,
-
-          meta: {
-            permission: "employees.view",
-          },
-        },
-
-        {
-          path: "departments",
-          name: "departments",
-          component: DepartmentsView,
-
-          meta: {
-            permission: "departments.view",
-          },
-        },
-
-        {
-          path: "positions",
-          name: "positions",
-          component: PositionsView,
-
-          meta: {
-            permission: "positions.view",
+            permissions: [
+              PermissionCode.USERS_VIEW,
+            ],
           },
         },
 
@@ -127,19 +135,72 @@ const router = createRouter({
           component: OrganizationalUnitsView,
 
           meta: {
-            permission: "users.manage",
+            roles: [
+              RoleCode.ADMIN,
+            ],
+
+            permissions: [
+              PermissionCode.ORGANIZATIONAL_UNITS_VIEW,
+            ],
+          },
+        },
+
+        // ==================================
+        // APPROVED EMPLOYEE REGISTRY
+        // ==================================
+
+        {
+          path: "employees",
+          name: "employees",
+          component: EmployeesView,
+
+          meta: {
+            permissions: [
+              PermissionCode.EMPLOYEES_VIEW,
+            ],
+          },
+        },
+
+        // ==================================
+        // HRIS REFERENCE DATA
+        // ==================================
+
+        {
+          path: "departments",
+          name: "departments",
+          component: DepartmentsView,
+
+          meta: {
+            permissions: [
+              PermissionCode.DEPARTMENTS_VIEW,
+            ],
           },
         },
 
         {
-          path: "employment-contracts",
-          name: "employment-contracts",
-          component: EmploymentContractsView,
+          path: "positions",
+          name: "positions",
+          component: PositionsView,
 
           meta: {
-            permission: "contracts.view",
+            permissions: [
+              PermissionCode.POSITIONS_VIEW,
+            ],
           },
         },
+
+        // ==================================
+        // FUTURE MODULES
+        // ==================================
+
+        // Department Access Mappings
+        // HRIS Employee Records
+        // HRIS Appointment Records
+        // HRIS Synchronization Requests
+        // Appointment Approvals
+        // Payroll Preparation
+        // Payroll Review
+        // Treasury Exports
       ],
     },
 
@@ -161,45 +222,58 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
 
+  // ========================================
+  // RESTORE AUTHENTICATED SESSION
+  // ========================================
+
   if (auth.token && !auth.user) {
     try {
       await auth.fetchMe();
     } catch {
-      if (to.name === "login") {
-        return true;
+      if (to.meta.requiresAuth) {
+        return {
+          name: "login",
+        };
       }
 
-      return { name: "login" };
+      return true;
     }
   }
 
-  // Authentication is required.
+  // ========================================
+  // AUTHENTICATION VALIDATION
+  // ========================================
 
   if (
     to.meta.requiresAuth &&
     !auth.isAuthenticated
   ) {
-    return { name: "login" };
+    return {
+      name: "login",
+    };
   }
 
-  // Mandatory password change takes priority
-  // over every other authenticated route.
+  // ========================================
+  // MANDATORY PASSWORD CHANGE
+  // ========================================
 
   if (
     auth.isAuthenticated &&
     auth.mustChangePassword &&
-    to.name !== "change-password"
+    !to.meta.allowPasswordChange
   ) {
     return {
       name: "change-password",
     };
   }
 
-  // Redirect authenticated users from login.
+  // ========================================
+  // GUEST-ONLY ROUTES
+  // ========================================
 
   if (
     auth.isAuthenticated &&
-    to.name === "login"
+    to.meta.guestOnly
   ) {
     return {
       name: "dashboard",
@@ -211,16 +285,30 @@ router.beforeEach(async (to) => {
   // ========================================
 
   if (to.meta.requiresAuth) {
-    const requiredPermission =
-      to.meta.permission as string | undefined;
+    for (const record of to.matched) {
+      const requiredRoles =
+        record.meta.roles;
 
-    if (
-      requiredPermission &&
-      !auth.can(requiredPermission)
-    ) {
-      return {
-        name: "dashboard",
-      };
+      if (
+        requiredRoles?.length &&
+        !auth.hasAnyRole(requiredRoles)
+      ) {
+        return {
+          name: "forbidden",
+        };
+      }
+
+      const requiredPermissions =
+        record.meta.permissions;
+
+      if (
+        requiredPermissions?.length &&
+        !auth.canAll(requiredPermissions)
+      ) {
+        return {
+          name: "forbidden",
+        };
+      }
     }
   }
 
@@ -234,7 +322,10 @@ router.beforeEach(async (to) => {
 window.addEventListener(
   "jocos:session-expired",
   () => {
-    if (router.currentRoute.value.name !== "login") {
+    if (
+      router.currentRoute.value.name !==
+      "login"
+    ) {
       void router.replace({
         name: "login",
       });
